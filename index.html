@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Block Blast</title>
+
+<!-- PWA / Add to Home Screen support -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Block Blast">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#1a1a2e">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;600;800&display=swap');
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  :root {
+    --bg: #1a1a2e;
+    --panel: #16213e;
+    --accent: #e94560;
+    --gold: #f5a623;
+    --teal: #0f9b8e;
+  }
+
+  body {
+    background: var(--bg);
+    font-family: 'Nunito', sans-serif;
+    color: #fff;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 10px 6px 24px;
+    overflow-x: hidden;
+    user-select: none;
+  }
+
+  h1 {
+    font-family: 'Fredoka One', cursive;
+    font-size: 1.9rem;
+    color: var(--gold);
+    text-shadow: 0 0 20px rgba(245,166,35,0.5);
+    letter-spacing: 2px;
+    margin-bottom: 6px;
+  }
+
+  .top-bar {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 8px;
+    width: 100%;
+    max-width: 340px;
+  }
+
+  .score-box {
+    background: var(--panel);
+    border-radius: 14px;
+    padding: 7px 14px;
+    text-align: center;
+    flex: 1;
+    border: 1px solid #1e3a5f;
+  }
+  .score-box .label { font-size: 0.6rem; color: #8899aa; text-transform: uppercase; letter-spacing: 1px; }
+  .score-box .value { font-family: 'Fredoka One', cursive; font-size: 1.3rem; color: var(--gold); }
+
+  .level-badge {
+    background: linear-gradient(135deg, var(--accent), #c0392b);
+    border-radius: 14px;
+    padding: 7px 14px;
+    font-family: 'Fredoka One', cursive;
+    font-size: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    white-space: nowrap;
+  }
+
+  .progress-bar-wrap {
+    width: 100%; max-width: 340px;
+    background: var(--panel);
+    border-radius: 10px;
+    height: 8px;
+    border: 1px solid #1e3a5f;
+    overflow: hidden;
+    margin-bottom: 8px;
+  }
+  #progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--teal), var(--gold));
+    border-radius: 10px;
+    transition: width 0.4s ease;
+    width: 0%;
+  }
+
+  #grid-wrap {
+    background: var(--panel);
+    border-radius: 16px;
+    padding: 8px;
+    border: 1px solid #1e3a5f;
+    margin-bottom: 8px;
+  }
+
+  #grid {
+    display: grid;
+    grid-template-columns: repeat(8, 38px);
+    grid-template-rows: repeat(8, 38px);
+    gap: 3px;
+    touch-action: none;
+  }
+
+  .cell {
+    width: 38px;
+    height: 38px;
+    border-radius: 6px;
+    background: #0d1b2a;
+    border: 1px solid #1e3a5f;
+    transition: background 0.1s;
+  }
+
+  .cell.filled {
+    border-color: transparent;
+    box-shadow: inset 0 2px 0 rgba(255,255,255,0.2), 0 2px 4px rgba(0,0,0,0.3);
+  }
+
+  .cell.hl-valid {
+    box-shadow: 0 0 6px rgba(255,255,255,0.3);
+    opacity: 0.85;
+  }
+
+  .cell.hl-invalid {
+    background: rgba(233,69,96,0.35) !important;
+    border-color: var(--accent) !important;
+  }
+
+  .hint {
+    font-size: 0.72rem;
+    color: #556677;
+    text-align: center;
+    margin-bottom: 6px;
+  }
+
+  #pieces-tray {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    max-width: 340px;
+    min-height: 100px;
+    background: var(--panel);
+    border-radius: 16px;
+    padding: 10px 8px;
+    border: 1px solid #1e3a5f;
+  }
+
+  .piece-slot {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 80px;
+    touch-action: none;
+    cursor: grab;
+    transition: opacity 0.2s, transform 0.15s;
+  }
+  .piece-slot.used { opacity: 0.15; pointer-events: none; }
+  .piece-slot.lifting { opacity: 0.25; transform: scale(0.9); }
+
+  .piece-grid {
+    display: grid;
+    gap: 2px;
+    pointer-events: none;
+  }
+
+  .pc {
+    width: 20px;
+    height: 20px;
+    border-radius: 4px;
+    box-shadow: inset 0 2px 0 rgba(255,255,255,0.2);
+  }
+
+  /* Ghost */
+  #ghost {
+    position: fixed;
+    pointer-events: none;
+    z-index: 9999;
+    display: none;
+    opacity: 0.9;
+    transform-origin: top left;
+  }
+
+  #ghost .ghost-grid {
+    display: grid;
+    gap: 3px;
+  }
+  #ghost .gc {
+    width: 38px;
+    height: 38px;
+    border-radius: 6px;
+    box-shadow: inset 0 2px 0 rgba(255,255,255,0.2);
+  }
+
+  /* Overlay */
+  #overlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(10,10,20,0.93);
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 14px;
+    text-align: center;
+    padding: 24px;
+  }
+  #overlay.show { display: flex; }
+  #overlay h2 { font-family: 'Fredoka One', cursive; font-size: 2rem; color: var(--gold); }
+  #overlay .sub { font-size: 0.95rem; color: #aabbcc; }
+  #overlay .pts { font-family: 'Fredoka One', cursive; font-size: 2.8rem; color: #fff; }
+  #overlay button {
+    font-family: 'Fredoka One', cursive;
+    font-size: 1.1rem;
+    border: none;
+    border-radius: 14px;
+    padding: 13px 30px;
+    background: linear-gradient(135deg, var(--teal), #0d7377);
+    color: #fff;
+    cursor: pointer;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+  }
+
+  @keyframes pop { 0%{transform:scale(1)} 50%{transform:scale(1.08)} 100%{transform:scale(1)} }
+  .pop { animation: pop 0.25s ease; }
+  @keyframes vanish { 0%{opacity:1;transform:scale(1)} 100%{opacity:0;transform:scale(1.3)} }
+  .vanish { animation: vanish 0.3s ease forwards; }
+</style>
+</head>
+<body>
+
+<h1>🟦 Block Blast</h1>
+
+<!-- Banner: shown only if opened in Chrome/non-Safari -->
+<div id="safari-banner" style="display:none;background:#e94560;color:#fff;border-radius:14px;padding:10px 14px;margin-bottom:10px;width:100%;max-width:340px;font-size:0.82rem;line-height:1.5;text-align:center;font-family:'Nunito',sans-serif;">
+  ⚠️ <strong>Open in Safari to install!</strong><br>
+  Tap the <strong>Share</strong> button in your browser, then choose <strong>"Open in Safari"</strong>.<br>
+  Then tap Share → <strong>"Add to Home Screen"</strong> 🏠
+  <br><button onclick="document.getElementById('safari-banner').style.display='none'" style="margin-top:8px;background:rgba(0,0,0,0.3);border:none;color:#fff;border-radius:8px;padding:5px 14px;font-family:'Nunito',sans-serif;font-size:0.8rem;cursor:pointer;">Dismiss</button>
+</div>
+
+<!-- Install toast: shown in Safari if not already installed -->
+<div id="install-toast" style="display:none;background:#0f9b8e;color:#fff;border-radius:14px;padding:10px 14px;margin-bottom:10px;width:100%;max-width:340px;font-size:0.82rem;line-height:1.6;text-align:center;font-family:'Nunito',sans-serif;">
+  📲 <strong>Install as an app!</strong><br>
+  Tap the <strong>Share</strong> button below, then <strong>"Add to Home Screen"</strong>
+  <br><button onclick="document.getElementById('install-toast').style.display='none'" style="margin-top:8px;background:rgba(0,0,0,0.2);border:none;color:#fff;border-radius:8px;padding:5px 14px;font-family:'Nunito',sans-serif;font-size:0.8rem;cursor:pointer;">Got it!</button>
+</div>
+
+<div class="top-bar">
+  <div class="score-box"><div class="label">Score</div><div class="value" id="score-val">0</div></div>
+  <div class="score-box"><div class="label">Best</div><div class="value" id="best-val">0</div></div>
+  <div class="level-badge" id="lv-badge">LV 1</div>
+</div>
+
+<div class="progress-bar-wrap"><div id="progress-bar"></div></div>
+<div id="grid-wrap"><div id="grid"></div></div>
+<p class="hint">👆 Drag a block onto the board to place it</p>
+<div id="pieces-tray"></div>
+
+<div id="ghost"><div class="ghost-grid" id="ghost-inner"></div></div>
+
+<div id="overlay">
+  <h2 id="ov-title"></h2>
+  <p class="sub" id="ov-sub"></p>
+  <div class="pts" id="ov-pts"></div>
+  <button id="ov-btn"></button>
+</div>
+
+<script>
+const COLORS = [
+  {fill:'#e74c3c',dark:'#c0392b'},
+  {fill:'#3498db',dark:'#2574a9'},
+  {fill:'#2ecc71',dark:'#27ae60'},
+  {fill:'#f39c12',dark:'#d68910'},
+  {fill:'#9b59b6',dark:'#76448a'},
+  {fill:'#1abc9c',dark:'#148f77'},
+  {fill:'#e91e63',dark:'#ad1457'},
+  {fill:'#ff5722',dark:'#bf360c'},
+];
+
+const ALL_SHAPES = [
+  [[1,1],[1,1]],
+  [[1,1,1]],[[1],[1],[1]],
+  [[1,1,1,1]],[[1],[1],[1],[1]],
+  [[1,1,1],[1,0,0]],[[1,1,1],[0,0,1]],
+  [[1,0],[1,0],[1,1]],[[0,1],[0,1],[1,1]],
+  [[1,1,1],[0,1,0]],
+  [[1,1],[0,1],[0,1]],[[0,1],[0,1],[1,1]],
+  [[1,1],[1,0],[1,0]],
+  [[1,0],[1,1],[0,1]],[[0,1],[1,1],[1,0]],
+  [[1,1,1,1,1]],[[1],[1],[1],[1],[1]],
+  [[1,1,1],[1,1,1]],
+  [[1]],[[1,1]],[[1],[1]],
+];
+
+const GS = 8;
+let grid, score, best, level, pieces, used, drag;
+
+// Score needed to unlock next level. Starts high and grows each level.
+// LV1→2: 2000, LV2→3: 3200, LV3→4: 4600, LV4→5: 6200, etc.
+function levelTarget(l){ return 2000 + (l - 1) * 1400; }
+
+// Cumulative score threshold to reach level l (sum of all previous targets)
+function cumulativeTarget(l){
+  let t = 0;
+  for(let i = 1; i < l; i++) t += levelTarget(i);
+  return t;
+}
+
+function init(){
+  grid = Array.from({length:GS},()=>Array(GS).fill(null));
+  score = 0; level = 1;
+  renderGrid();
+  spawnPieces();
+  redrawUI();
+}
+
+function redrawUI(){
+  document.getElementById('score-val').textContent = score;
+  document.getElementById('best-val').textContent = best||0;
+  document.getElementById('lv-badge').textContent = 'LV ' + level;
+  const levelStart = cumulativeTarget(level);
+  const levelEnd   = cumulativeTarget(level + 1);
+  const pct = Math.min(100, Math.max(0, Math.round((score - levelStart) / (levelEnd - levelStart) * 100)));
+  document.getElementById('progress-bar').style.width = pct+'%';
+}
+
+/* ── GRID ── */
+function renderGrid(){
+  const el = document.getElementById('grid');
+  el.innerHTML='';
+  for(let r=0;r<GS;r++) for(let c=0;c<GS;c++){
+    const d=document.createElement('div');
+    d.className='cell'; d.dataset.r=r; d.dataset.c=c;
+    if(grid[r][c]){ applyColor(d,grid[r][c]); d.classList.add('filled'); }
+    el.appendChild(d);
+  }
+}
+
+function applyColor(el,col){
+  el.style.background=col.fill;
+  el.style.borderColor=col.dark;
+}
+
+function cellEl(r,c){ return document.querySelector(`.cell[data-r="${r}"][data-c="${c}"]`); }
+
+/* ── PIECES ── */
+function shapesForLevel(l){
+  return ALL_SHAPES.slice(0, Math.min(ALL_SHAPES.length, 10 + l*2));
+}
+
+function spawnPieces(){
+  const pool=shapesForLevel(level);
+  pieces = Array.from({length:3},()=>({
+    shape: pool[Math.floor(Math.random()*pool.length)],
+    color: COLORS[Math.floor(Math.random()*COLORS.length)]
+  }));
+  used=[false,false,false];
+  renderPieces();
+}
+
+function renderPieces(){
+  const tray=document.getElementById('pieces-tray');
+  tray.innerHTML='';
+  for(let i=0;i<3;i++){
+    const slot=document.createElement('div');
+    slot.className='piece-slot'+(used[i]?' used':'');
+    slot.dataset.i=i;
+    if(!used[i]){
+      const {shape,color}=pieces[i];
+      const cols=shape[0].length;
+      const pg=document.createElement('div');
+      pg.className='piece-grid';
+      pg.style.gridTemplateColumns=`repeat(${cols},20px)`;
+      shape.forEach(row=>row.forEach(v=>{
+        const pc=document.createElement('div');
+        pc.className='pc';
+        pc.style.background=v?color.fill:'transparent';
+        if(v) pc.style.boxShadow=`inset 0 2px 0 rgba(255,255,255,0.2),0 2px 0 ${color.dark}`;
+        pg.appendChild(pc);
+      }));
+      slot.appendChild(pg);
+      slot.addEventListener('touchstart',onTS,{passive:false});
+    }
+    tray.appendChild(slot);
+  }
+}
+
+/* ── TOUCH DRAG ── */
+const ghost=document.getElementById('ghost');
+const ghostInner=document.getElementById('ghost-inner');
+
+function buildGhost(shape,color){
+  ghostInner.innerHTML='';
+  ghostInner.style.gridTemplateColumns=`repeat(${shape[0].length},38px)`;
+  shape.forEach(row=>row.forEach(v=>{
+    const gc=document.createElement('div');
+    gc.className='gc';
+    gc.style.background=v?color.fill:'transparent';
+    if(v) gc.style.boxShadow=`inset 0 2px 0 rgba(255,255,255,0.2),0 2px 0 ${color.dark}`;
+    ghostInner.appendChild(gc);
+  }));
+}
+
+function placeGhost(x,y){
+  ghost.style.left=(x-19)+'px';
+  ghost.style.top=(y-90)+'px';
+}
+
+function onTS(e){
+  e.preventDefault();
+  const i=parseInt(e.currentTarget.dataset.i);
+  if(used[i]) return;
+  drag={i, shape:pieces[i].shape, color:pieces[i].color};
+  e.currentTarget.classList.add('lifting');
+  buildGhost(drag.shape,drag.color);
+  ghost.style.display='block';
+  const t=e.touches[0];
+  placeGhost(t.clientX,t.clientY);
+  document.addEventListener('touchmove',onTM,{passive:false});
+  document.addEventListener('touchend',onTE);
+}
+
+function onTM(e){
+  e.preventDefault();
+  const t=e.touches[0];
+  placeGhost(t.clientX,t.clientY);
+  clearHL();
+  const under=document.elementFromPoint(t.clientX,t.clientY-60);
+  if(under&&under.classList.contains('cell')){
+    const r=+under.dataset.r, c=+under.dataset.c;
+    doHL(r,c);
+  }
+}
+
+function onTE(e){
+  document.removeEventListener('touchmove',onTM);
+  document.removeEventListener('touchend',onTE);
+  ghost.style.display='none';
+  clearHL();
+  document.querySelectorAll('.piece-slot.lifting').forEach(s=>s.classList.remove('lifting'));
+  const t=e.changedTouches[0];
+  const under=document.elementFromPoint(t.clientX,t.clientY-60);
+  if(under&&under.classList.contains('cell')){
+    tryPlace(+under.dataset.r,+under.dataset.c,drag.i);
+  }
+  drag=null;
+}
+
+/* ── HIGHLIGHT ── */
+function clearHL(){
+  document.querySelectorAll('.hl-valid,.hl-invalid').forEach(c=>{
+    c.classList.remove('hl-valid','hl-invalid');
+    const r=+c.dataset.r,cc=+c.dataset.c;
+    if(grid[r][cc]){ applyColor(c,grid[r][cc]); }
+    else { c.style.background=''; c.style.borderColor=''; }
+  });
+}
+
+function doHL(r,c){
+  const ok=canPlace(r,c,drag.shape);
+  drag.shape.forEach((row,dr)=>row.forEach((v,dc)=>{
+    if(!v) return;
+    const nr=r+dr,nc=c+dc;
+    if(nr<0||nr>=GS||nc<0||nc>=GS) return;
+    const el=cellEl(nr,nc);
+    if(!el) return;
+    if(ok){ el.classList.add('hl-valid'); el.style.background=drag.color.fill; el.style.borderColor=drag.color.dark; }
+    else el.classList.add('hl-invalid');
+  }));
+}
+
+/* ── LOGIC ── */
+function canPlace(r,c,shape){
+  for(let dr=0;dr<shape.length;dr++)
+    for(let dc=0;dc<shape[0].length;dc++){
+      if(!shape[dr][dc]) continue;
+      const nr=r+dr,nc=c+dc;
+      if(nr<0||nr>=GS||nc<0||nc>=GS||grid[nr][nc]) return false;
+    }
+  return true;
+}
+
+function tryPlace(r,c,idx){
+  const {shape,color}=pieces[idx];
+  if(!canPlace(r,c,shape)) return;
+  shape.forEach((row,dr)=>row.forEach((v,dc)=>{
+    if(v) grid[r+dr][c+dc]=color;
+  }));
+  used[idx]=true;
+  score += shape.flat().filter(Boolean).length*5;
+  const cleared=clearLines();
+  if(cleared>0) score+=cleared*cleared*60*level;
+  if(score>=(best||0)) best=score;
+  renderGrid();
+  renderPieces();
+  redrawUI();
+
+  // Check if all 3 pieces placed → spawn new set, THEN check game over
+  if(used.every(Boolean)){
+    setTimeout(()=>{
+      spawnPieces();
+      redrawUI();
+      // Level up check happens after new pieces spawned
+      if(score >= cumulativeTarget(level + 1)){
+        level++;
+        showOverlay('🎉 Level '+(level)+'!','Keep going — the bar resets for the new level!',score,'Play On →',()=>{
+          renderGrid(); redrawUI();
+        });
+        return;
+      }
+      if(!anyMove()) showGameOver();
+    },150);
+  } else {
+    // Still have pieces remaining — only game over if NONE of the remaining pieces can fit anywhere
+    if(!anyMove()) showGameOver();
+  }
+}
+
+function clearLines(){
+  let total=0;
+  const clearSet=new Set();
+  for(let r=0;r<GS;r++) if(grid[r].every(v=>v)) for(let c=0;c<GS;c++) clearSet.add(r+'-'+c);
+  for(let c=0;c<GS;c++) if(grid.every(row=>row[c])) for(let r=0;r<GS;r++) clearSet.add(r+'-'+c);
+  clearSet.forEach(k=>{
+    const [r,c]=k.split('-').map(Number);
+    grid[r][c]=null; total++;
+  });
+  return Math.floor(clearSet.size/GS);
+}
+
+function anyMove(){
+  return pieces.some((p,i)=>{
+    if(used[i]) return false;
+    for(let r=0;r<GS;r++) for(let c=0;c<GS;c++) if(canPlace(r,c,p.shape)) return true;
+    return false;
+  });
+}
+
+function showGameOver(){
+  showOverlay('Game Over 😢','No moves left',score,'Play Again',()=>{score=0;level=1;init();});
+}
+
+function showOverlay(title,sub,pts,btn,cb){
+  document.getElementById('ov-title').textContent=title;
+  document.getElementById('ov-sub').textContent=sub;
+  document.getElementById('ov-pts').textContent=pts+' pts';
+  const b=document.getElementById('ov-btn');
+  b.textContent=btn;
+  b.onclick=()=>{ document.getElementById('overlay').classList.remove('show'); cb(); };
+  document.getElementById('overlay').classList.add('show');
+}
+
+// ── BROWSER DETECTION & INSTALL PROMPTS ──
+(function() {
+  const ua = navigator.userAgent;
+  const isIOS = /iphone|ipad|ipod/i.test(ua);
+  const isSafari = /safari/i.test(ua) && !/chrome|crios|fxios/i.test(ua);
+  const isInstalled = window.navigator.standalone === true;
+  if (isIOS && !isSafari) {
+    document.getElementById('safari-banner').style.display = 'block';
+  } else if (isIOS && isSafari && !isInstalled) {
+    document.getElementById('install-toast').style.display = 'block';
+  }
+})();
+
+init();
+</script>
+</body>
+</html>
