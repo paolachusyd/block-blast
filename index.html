@@ -102,13 +102,12 @@ h1 {
 }
 
 .cell {
-  /* Fill the grid column — aspect-ratio keeps it square */
   width: 100%;
   aspect-ratio: 1;
   border-radius: 5px;
-  background: #0d1b2a;
-  border: 1px solid #1e3a5f;
-  transition: background 0.08s;
+  background: transparent;
+  border: 1px solid transparent;
+  transition: none;
 }
 .cell.filled {
   border-color: transparent;
@@ -116,19 +115,16 @@ h1 {
 }
 .cell.hl-valid { opacity: 0.85; }
 .cell.hl-bad {
-  background: rgba(233,69,96,0.4) !important;
-  border-color: #e94560 !important;
+  opacity: 0.9;
 }
-/* Cells that are part of a row/col that would complete if piece is dropped */
 .cell.hl-line {
-  box-shadow: inset 0 0 0 2px #fff, 0 0 10px 3px rgba(255,255,255,0.6) !important;
+  box-shadow: inset 0 0 0 2px #fff, 0 0 10px 3px rgba(255,255,255,0.6);
   filter: brightness(1.4);
   z-index: 5;
   position: relative;
 }
-/* The piece preview cells on a completing line */
 .cell.hl-valid.hl-line {
-  box-shadow: inset 0 0 0 2px #fff, 0 0 14px 4px rgba(255,255,255,0.8) !important;
+  box-shadow: inset 0 0 0 2px #fff, 0 0 14px 4px rgba(255,255,255,0.8);
   filter: brightness(1.6);
 }
 
@@ -315,76 +311,212 @@ h1 {
 </div>
 
 <script>
+// ── BLOCK SVG GRAPHICS PER THEME ───────────────────────────
+const BLOCK_SVGS = {
+  classic: (r,c) => `<svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" style="position:absolute;width:60%;height:60%;pointer-events:none">
+    <polygon points="10,3 11.8,8 17,8 12.9,11.2 14.5,16.5 10,13.5 5.5,16.5 7.1,11.2 3,8 8.2,8" fill="rgba(255,255,255,0.18)"/>
+  </svg>`,
+
+  watermelon: (r,c) => `<svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" style="position:absolute;width:65%;height:65%;pointer-events:none">
+    <ellipse cx="6" cy="8" rx="1.6" ry="2.4" fill="rgba(0,0,0,0.35)" transform="rotate(-20,6,8)"/>
+    <ellipse cx="6" cy="8" rx="0.8" ry="1.4" fill="rgba(80,20,20,0.2)" transform="rotate(-20,6,8)"/>
+    <ellipse cx="13" cy="7" rx="1.6" ry="2.4" fill="rgba(0,0,0,0.35)" transform="rotate(15,13,7)"/>
+    <ellipse cx="13" cy="7" rx="0.8" ry="1.4" fill="rgba(80,20,20,0.2)" transform="rotate(15,13,7)"/>
+    <ellipse cx="10" cy="13" rx="1.6" ry="2.4" fill="rgba(0,0,0,0.35)" transform="rotate(-5,10,13)"/>
+    <ellipse cx="10" cy="13" rx="0.8" ry="1.4" fill="rgba(80,20,20,0.2)" transform="rotate(-5,10,13)"/>
+  </svg>`,
+
+  ocean: (r,c) => {
+    const t = (r*3+c*5)%3;
+    if(t===0) return `<svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" style="position:absolute;width:65%;height:65%;pointer-events:none">
+      <path d="M13 10 C13 10 16 7 17 10 C16 13 13 10 13 10Z" fill="rgba(255,255,255,0.25)"/>
+      <ellipse cx="9.5" cy="10" rx="4.5" ry="3" fill="rgba(255,255,255,0.18)"/>
+      <circle cx="7.5" cy="9.2" r="1" fill="rgba(255,255,255,0.35)"/>
+      <circle cx="7.2" cy="9" r="0.4" fill="rgba(0,0,0,0.3)"/>
+      <line x1="9" y1="7.5" x2="12" y2="7" stroke="rgba(255,255,255,0.2)" stroke-width="0.6"/>
+      <line x1="9" y1="10" x2="12" y2="10" stroke="rgba(255,255,255,0.2)" stroke-width="0.6"/>
+      <line x1="9" y1="12.5" x2="12" y2="13" stroke="rgba(255,255,255,0.2)" stroke-width="0.6"/>
+    </svg>`;
+    if(t===1) return `<svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" style="position:absolute;width:65%;height:65%;pointer-events:none">
+      <path d="M2 10 Q4 7.5 10 8 Q15 8.5 18 10 Q15 11.5 10 12 Q4 12.5 2 10Z" fill="rgba(255,255,255,0.2)" stroke="rgba(255,255,255,0.35)" stroke-width="0.6"/>
+      <path d="M8 8 Q9 4.5 11 8Z" fill="rgba(255,255,255,0.28)" stroke="rgba(255,255,255,0.4)" stroke-width="0.5"/>
+      <path d="M2 10 Q0 7.5 1 6.5 Q2 8 2 10Z" fill="rgba(255,255,255,0.22)"/>
+      <path d="M2 10 Q0 12.5 1 13.5 Q2 12 2 10Z" fill="rgba(255,255,255,0.22)"/>
+      <path d="M7 10.5 Q8 13 10 12Z" fill="rgba(255,255,255,0.18)"/>
+      <circle cx="15.5" cy="9.5" r="0.8" fill="rgba(0,0,0,0.4)"/>
+      <circle cx="15.7" cy="9.3" r="0.25" fill="rgba(255,255,255,0.5)"/>
+      <path d="M17 10.5 Q17.5 11.5 16.5 11.5" stroke="rgba(0,0,0,0.3)" stroke-width="0.5" fill="none" stroke-linecap="round"/>
+    </svg>`;
+    return `<svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" style="position:absolute;width:65%;height:65%;pointer-events:none">
+      <path d="M2 13 Q4 9 8 7.5 Q12 6 15 7 Q17 7.5 18 9 Q16 8.5 14 9 Q10 10 7 12 Q4 14 2 13Z" fill="rgba(255,255,255,0.2)" stroke="rgba(255,255,255,0.35)" stroke-width="0.6"/>
+      <path d="M10 8.5 Q11 5 13 7Z" fill="rgba(255,255,255,0.28)" stroke="rgba(255,255,255,0.38)" stroke-width="0.5"/>
+      <path d="M18 9 Q19.5 9.5 19 10.5 Q18 10 17.5 9.5Z" fill="rgba(255,255,255,0.25)"/>
+      <path d="M2 13 Q0.5 11 1.5 10 Q2.5 12 2 13Z" fill="rgba(255,255,255,0.22)"/>
+      <path d="M2 13 Q0.5 15 1.5 16 Q2.5 14 2 13Z" fill="rgba(255,255,255,0.22)"/>
+      <circle cx="16" cy="8.5" r="0.75" fill="rgba(0,0,0,0.4)"/>
+      <circle cx="16.2" cy="8.3" r="0.25" fill="rgba(255,255,255,0.5)"/>
+      <path d="M18 10.5 Q18 11.5 17 11.5" stroke="rgba(255,255,255,0.35)" stroke-width="0.5" fill="none" stroke-linecap="round"/>
+    </svg>`;
+  },
+
+  candy: (r,c) => {
+    const t = (r*7+c*3)%3;
+    if(t===0) return `<svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" style="position:absolute;width:65%;height:65%;pointer-events:none">
+      <line x1="10" y1="13" x2="10" y2="18" stroke="rgba(255,255,255,0.4)" stroke-width="1.4" stroke-linecap="round"/>
+      <circle cx="10" cy="8.5" r="5" fill="rgba(255,255,255,0.15)" stroke="rgba(255,255,255,0.4)" stroke-width="1"/>
+      <path d="M10 3.5 Q13.5 3.5 14.5 7 Q15 9 13 11 Q11 13 8 12.5" stroke="rgba(255,255,255,0.3)" stroke-width="1.2" fill="none" stroke-linecap="round"/>
+      <path d="M10 3.5 Q6.5 4 5.5 7 Q5 9.5 7 11.5" stroke="rgba(255,255,255,0.18)" stroke-width="0.8" fill="none" stroke-linecap="round"/>
+      <circle cx="8" cy="6.5" r="1.2" fill="rgba(255,255,255,0.25)"/>
+    </svg>`;
+    if(t===1) return `<svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" style="position:absolute;width:65%;height:65%;pointer-events:none">
+      <path d="M6 12 Q6.5 16.5 10 16.5 Q13.5 16.5 14 12Z" fill="rgba(255,220,150,0.3)" stroke="rgba(255,220,150,0.5)" stroke-width="0.7"/>
+      <line x1="8" y1="12" x2="7.5" y2="16.2" stroke="rgba(255,255,255,0.15)" stroke-width="0.5"/>
+      <line x1="10" y1="12" x2="10" y2="16.5" stroke="rgba(255,255,255,0.15)" stroke-width="0.5"/>
+      <line x1="12" y1="12" x2="12.5" y2="16.2" stroke="rgba(255,255,255,0.15)" stroke-width="0.5"/>
+      <path d="M5.5 12 Q7 9 10 9 Q13 9 14.5 12Z" fill="rgba(255,255,255,0.25)" stroke="rgba(255,255,255,0.4)" stroke-width="0.7"/>
+      <path d="M10 9 Q8.5 7.5 9.5 6 Q10.5 4.5 10 3" stroke="rgba(255,255,255,0.45)" stroke-width="1.4" fill="none" stroke-linecap="round"/>
+      <path d="M10 9 Q11.5 7 11 5.5" stroke="rgba(255,255,255,0.3)" stroke-width="1" fill="none" stroke-linecap="round"/>
+      <circle cx="10" cy="2.8" r="1.4" fill="rgba(255,80,80,0.55)" stroke="rgba(255,80,80,0.7)" stroke-width="0.5"/>
+      <circle cx="9.5" cy="2.3" r="0.4" fill="rgba(255,255,255,0.4)"/>
+    </svg>`;
+    return `<svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" style="position:absolute;width:65%;height:65%;pointer-events:none">
+      <path d="M6.5 12 L10 19 L13.5 12Z" fill="rgba(255,210,140,0.4)" stroke="rgba(255,210,140,0.6)" stroke-width="0.6" stroke-linejoin="round"/>
+      <line x1="8.8" y1="12.5" x2="10.2" y2="18" stroke="rgba(255,255,255,0.2)" stroke-width="0.5"/>
+      <line x1="11.2" y1="12.5" x2="9.8" y2="18" stroke="rgba(255,255,255,0.2)" stroke-width="0.5"/>
+      <line x1="7" y1="14" x2="13" y2="14" stroke="rgba(255,255,255,0.15)" stroke-width="0.5"/>
+      <line x1="7.8" y1="16.2" x2="12.2" y2="16.2" stroke="rgba(255,255,255,0.15)" stroke-width="0.5"/>
+      <circle cx="10" cy="8.5" r="4" fill="rgba(255,255,255,0.22)" stroke="rgba(255,255,255,0.48)" stroke-width="0.9"/>
+      <path d="M12 12 Q12.5 13 12 13.5" stroke="rgba(255,255,255,0.35)" stroke-width="1" fill="none" stroke-linecap="round"/>
+      <circle cx="8.3" cy="7" r="1.2" fill="rgba(255,255,255,0.32)"/>
+      <circle cx="11.5" cy="7.8" r="0.5" fill="rgba(255,255,255,0.22)"/>
+    </svg>`;
+  },
+
+  space: (r,c) => `<svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" style="position:absolute;width:65%;height:65%;pointer-events:none">
+    <path d="M10 2 C10 2 14 7 14 12 L10 14 L6 12 C6 7 10 2 10 2Z" stroke="rgba(255,255,255,0.35)" stroke-width="1" fill="rgba(255,255,255,0.1)"/>
+    <circle cx="10" cy="8" r="1.8" stroke="rgba(255,255,255,0.4)" stroke-width="0.8" fill="rgba(255,255,255,0.12)"/>
+    <path d="M6 12 L3 15 L6 14Z" stroke="rgba(255,255,255,0.3)" stroke-width="0.8" fill="rgba(255,255,255,0.08)"/>
+    <path d="M14 12 L17 15 L14 14Z" stroke="rgba(255,255,255,0.3)" stroke-width="0.8" fill="rgba(255,255,255,0.08)"/>
+    <path d="M8.5 14 Q10 17.5 11.5 14" stroke="rgba(255,160,50,0.5)" stroke-width="0.9" fill="none"/>
+  </svg>`,
+
+  gold: (r,c) => `<svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" style="position:absolute;width:65%;height:65%;pointer-events:none">
+    <path d="M3 14 L3 8 L7 11 L10 5 L13 11 L17 8 L17 14 Z" fill="rgba(255,220,50,0.25)" stroke="rgba(255,220,50,0.35)" stroke-width="0.5"/>
+    <rect x="3" y="14" width="14" height="2" rx="1" fill="rgba(255,220,50,0.2)"/>
+    <circle cx="10" cy="5" r="1" fill="rgba(255,220,50,0.4)"/>
+    <circle cx="3" cy="8" r="0.8" fill="rgba(255,220,50,0.35)"/>
+    <circle cx="17" cy="8" r="0.8" fill="rgba(255,220,50,0.35)"/>
+  </svg>`,
+};
+
+function getBlockSVG(themeIdx, r, c) {
+  const fns = [
+    BLOCK_SVGS.classic,
+    BLOCK_SVGS.watermelon,
+    BLOCK_SVGS.ocean,
+    BLOCK_SVGS.candy,
+    BLOCK_SVGS.space,
+    BLOCK_SVGS.gold,
+  ];
+  return fns[themeIdx] ? fns[themeIdx](r, c) : '';
+}
+
 // ── THEMES ─────────────────────────────────────────────────
-// Each theme is a palette of colors used for pieces
-// Themes unlock as player levels up
 const THEMES = [
-  { // LV 1-2: Classic bright
-    name:'Classic',
+  { name:'Classic 🎮', idx:0,
+    // Bright saturated colours on very dark navy — high contrast
     colors:[
-      {f:'#e74c3c',d:'#c0392b'},{f:'#3498db',d:'#2574a9'},
-      {f:'#2ecc71',d:'#27ae60'},{f:'#f39c12',d:'#d68910'},
-      {f:'#9b59b6',d:'#76448a'},{f:'#1abc9c',d:'#148f77'},
-      {f:'#e91e63',d:'#ad1457'},{f:'#ff5722',d:'#bf360c'},
+      {f:'#ff4757',d:'#c0392b'}, // bright red
+      {f:'#1e90ff',d:'#1a6dbf'}, // bright blue
+      {f:'#2ed573',d:'#27ae60'}, // bright green
+      {f:'#ffa502',d:'#cc8400'}, // bright orange
+      {f:'#a855f7',d:'#7c3aed'}, // bright purple
+      {f:'#00d2d3',d:'#009b9c'}, // bright cyan
+      {f:'#ff6b81',d:'#c0392b'}, // bright pink
+      {f:'#ffdd59',d:'#cc9f00'}, // bright yellow
     ],
     bg:'#1a1a2e', panel:'#16213e', cell:'#0d1b2a', cellBorder:'#1e3a5f',
-    h1color:'#f5a623', prog:'linear-gradient(90deg,#0f9b8e,#f5a623)'
-  },
-  { // LV 3-4: Watermelon 🍉
-    name:'Watermelon 🍉',
+    h1color:'#ffa502', prog:'linear-gradient(90deg,#00d2d3,#ffa502)', boardBg:null },
+
+  { name:'Watermelon 🍉', idx:1,
+    // Pieces must pop on dark green bg — use bright pinks, whites, yellows, NOT dark greens
     colors:[
-      {f:'#ff4d6d',d:'#c9184a'},{f:'#ff758f',d:'#c9184a'},
-      {f:'#2d6a4f',d:'#1b4332'},{f:'#40916c',d:'#2d6a4f'},
-      {f:'#ff0054',d:'#c9184a'},{f:'#52b788',d:'#2d6a4f'},
-      {f:'#b7e4c7',d:'#52b788'},{f:'#ff6b6b',d:'#c1121f'},
+      {f:'#ff4d6d',d:'#c9184a'}, // hot pink
+      {f:'#ff85a1',d:'#e5537a'}, // light pink
+      {f:'#ffffff',d:'#cccccc'}, // white
+      {f:'#ffe066',d:'#ccaa00'}, // yellow
+      {f:'#ff0054',d:'#c9003d'}, // deep red
+      {f:'#c8f7c5',d:'#52b788'}, // very light green (high contrast on dark)
+      {f:'#ffb347',d:'#e07b00'}, // orange
+      {f:'#ff6b6b',d:'#c0392b'}, // coral
     ],
-    bg:'#1b4332', panel:'#2d6a4f', cell:'#1b4332', cellBorder:'#40916c',
-    h1color:'#ff4d6d', prog:'linear-gradient(90deg,#40916c,#ff4d6d)'
-  },
-  { // LV 5-6: Ocean 🌊
-    name:'Ocean 🌊',
+    bg:'#1a3a28', panel:'#1f4a32', cell:'#152e20', cellBorder:'#2a6642',
+    h1color:'#ff4d6d', prog:'linear-gradient(90deg,#c8f7c5,#ff4d6d)',
+    boardBg:'radial-gradient(circle, rgba(255,255,255,0.05) 1px, transparent 1px) 0 0 / 14px 14px' },
+
+  { name:'Ocean 🌊', idx:2,
+    // Bright aquas, whites, teals on deep navy — no dark blues as pieces
     colors:[
-      {f:'#0077b6',d:'#023e8a'},{f:'#00b4d8',d:'#0077b6'},
-      {f:'#90e0ef',d:'#00b4d8'},{f:'#caf0f8',d:'#90e0ef'},
-      {f:'#023e8a',d:'#03045e'},{f:'#48cae4',d:'#0096c7'},
-      {f:'#ade8f4',d:'#48cae4'},{f:'#03045e',d:'#001220'},
+      {f:'#00d4ff',d:'#0099cc'}, // bright cyan
+      {f:'#ffffff',d:'#b0c8d4'}, // white
+      {f:'#7fdbff',d:'#00aad4'}, // sky blue
+      {f:'#00f5d4',d:'#00c4a7'}, // bright teal
+      {f:'#48cae4',d:'#0096c7'}, // medium blue (bright enough)
+      {f:'#ffe066',d:'#ccaa00'}, // yellow (fish colour accent)
+      {f:'#ff85a1',d:'#e5537a'}, // coral pink (coral reef)
+      {f:'#b5ead7',d:'#52b788'}, // seafoam
     ],
-    bg:'#03045e', panel:'#023e8a', cell:'#012a5e', cellBorder:'#0077b6',
-    h1color:'#90e0ef', prog:'linear-gradient(90deg,#0096c7,#caf0f8)'
-  },
-  { // LV 7-8: Candy 🍬
-    name:'Candy 🍬',
+    bg:'#02044a', panel:'#030a6e', cell:'#010336', cellBorder:'#1a3a8f',
+    h1color:'#00d4ff', prog:'linear-gradient(90deg,#00f5d4,#00d4ff)',
+    boardBg:'repeating-linear-gradient(45deg,rgba(255,255,255,0.02) 0px,rgba(255,255,255,0.02) 2px,transparent 2px,transparent 14px)' },
+
+  { name:'Candy 🍬', idx:3,
+    // All bright pastel-neons on deep purple — all must be light/bright
     colors:[
-      {f:'#ff70a6',d:'#d63384'},{f:'#ff9770',d:'#e55a00'},
-      {f:'#ffd670',d:'#e6a800'},{f:'#70d6ff',d:'#0096c7'},
-      {f:'#e9ff70',d:'#b5cc00'},{f:'#ff70d6',d:'#cc00aa'},
-      {f:'#70ffb5',d:'#00cc6a'},{f:'#b070ff',d:'#7700cc'},
+      {f:'#ff70a6',d:'#d63384'}, // pink
+      {f:'#ff9770',d:'#e55a00'}, // peach
+      {f:'#ffd670',d:'#e6a800'}, // yellow
+      {f:'#70d6ff',d:'#0096c7'}, // sky blue
+      {f:'#a0ff70',d:'#5ec200'}, // lime (replaced dark green)
+      {f:'#ff70f0',d:'#cc00d4'}, // magenta
+      {f:'#70ffe0',d:'#00cca3'}, // mint
+      {f:'#fff170',d:'#ccc000'}, // cream yellow
     ],
-    bg:'#2d0036', panel:'#47004f', cell:'#2d0036', cellBorder:'#9b00b3',
-    h1color:'#ff70a6', prog:'linear-gradient(90deg,#ff70a6,#ffd670)'
-  },
-  { // LV 9-10: Space 🚀
-    name:'Space 🚀',
+    bg:'#2d0036', panel:'#3d004d', cell:'#220029', cellBorder:'#7a0099',
+    h1color:'#ff70a6', prog:'linear-gradient(90deg,#ff70a6,#ffd670)',
+    boardBg:'radial-gradient(circle,rgba(255,255,255,0.05) 1px,transparent 1px) 0 0 / 12px 12px' },
+
+  { name:'Space 🚀', idx:4,
+    // Bright glowing colours on near-black — avoid mid-range purples that blend
     colors:[
-      {f:'#7400b8',d:'#5a0091'},{f:'#6930c3',d:'#4e2399'},
-      {f:'#5e60ce',d:'#4649a3'},{f:'#5390d9',d:'#3a72b8'},
-      {f:'#4ea8de',d:'#2d8cbf'},{f:'#48bfe3',d:'#2a9ec4'},
-      {f:'#56cfe1',d:'#33b5c9'},{f:'#64dfdf',d:'#3dc4c4'},
+      {f:'#bf5fff',d:'#8b00ff'}, // bright violet
+      {f:'#00ffea',d:'#00c4b4'}, // neon cyan
+      {f:'#ff4fd8',d:'#cc00aa'}, // neon pink
+      {f:'#ffe566',d:'#ccb400'}, // bright gold/star
+      {f:'#4dffb4',d:'#00cc7a'}, // neon green
+      {f:'#ff6b35',d:'#cc4400'}, // neon orange
+      {f:'#5ce1ff',d:'#0099cc'}, // electric blue
+      {f:'#ffffff',d:'#aaaaaa'}, // white stars
     ],
-    bg:'#03001c', panel:'#1a0040', cell:'#03001c', cellBorder:'#4a0080',
-    h1color:'#64dfdf', prog:'linear-gradient(90deg,#7400b8,#64dfdf)'
-  },
-  { // LV 11+: Gold 👑
-    name:'Gold 👑',
+    bg:'#03001c', panel:'#0d0030', cell:'#020015', cellBorder:'#3a006f',
+    h1color:'#bf5fff', prog:'linear-gradient(90deg,#bf5fff,#00ffea)',
+    boardBg:'radial-gradient(circle,rgba(255,255,255,0.5) 1px,transparent 1px) 0 0 / 16px 16px' },
+
+  { name:'Gold 👑', idx:5,
+    // Rich warm bright tones on dark chocolate — avoid colours too close to bg
     colors:[
-      {f:'#f9c74f',d:'#d4a017'},{f:'#f8961e',d:'#c97700'},
-      {f:'#f3722c',d:'#bf4e08'},{f:'#90be6d',d:'#618a3d'},
-      {f:'#43aa8b',d:'#2a7a61'},{f:'#577590',d:'#3a556e'},
-      {f:'#ffd166',d:'#e5a800'},{f:'#ef233c',d:'#b51227'},
+      {f:'#ffd700',d:'#b8860b'}, // pure gold
+      {f:'#ff8c00',d:'#cc5500'}, // deep orange
+      {f:'#ff4500',d:'#cc2200'}, // red-orange
+      {f:'#ffffff',d:'#cccccc'}, // white diamond
+      {f:'#ffe566',d:'#ccb400'}, // pale gold
+      {f:'#ff69b4',d:'#cc3385'}, // rose gold
+      {f:'#00ced1',d:'#008b8b'}, // teal accent
+      {f:'#adff2f',d:'#7acc00'}, // lime accent
     ],
-    bg:'#1a1000', panel:'#2d1f00', cell:'#1a1000', cellBorder:'#7a5200',
-    h1color:'#f9c74f', prog:'linear-gradient(90deg,#f8961e,#f9c74f)'
-  },
+    bg:'#1a0f00', panel:'#2d1a00', cell:'#120a00', cellBorder:'#6b3d00',
+    h1color:'#ffd700', prog:'linear-gradient(90deg,#ff8c00,#ffd700)',
+    boardBg:'repeating-linear-gradient(60deg,rgba(255,200,0,0.04) 0,rgba(255,200,0,0.04) 1px,transparent 1px,transparent 12px),repeating-linear-gradient(-60deg,rgba(255,200,0,0.04) 0,rgba(255,200,0,0.04) 1px,transparent 1px,transparent 12px)' },
 ];
 
 function getTheme(l) {
@@ -402,13 +534,20 @@ function applyTheme(theme) {
   document.getElementById('grid-wrap').style.borderColor = theme.cellBorder;
   document.getElementById('tray').style.background = theme.panel;
   document.getElementById('tray').style.borderColor = theme.cellBorder;
-  document.querySelectorAll('.score-box').forEach(b=>{ b.style.background=theme.panel; b.style.borderColor=theme.cellBorder; });
+  document.querySelectorAll('.score-box').forEach(b=>{
+    b.style.background=theme.panel;
+    b.style.borderColor=theme.cellBorder;
+  });
+  // Update score value colours to match theme
+  document.querySelectorAll('.score-box .val').forEach(v=>{ v.style.color=theme.h1color; });
   document.querySelector('.prog-wrap').style.background = theme.panel;
   document.getElementById('prog').style.background = theme.prog;
   document.querySelector('h1').style.color = theme.h1color;
   document.querySelector('h1').style.textShadow = `0 0 18px ${theme.h1color}88`;
-  // Update empty cells
-  document.querySelectorAll('.cell:not(.filled)').forEach(c=>{ c.style.background=theme.cell; c.style.borderColor=theme.cellBorder; });
+  document.querySelector('.lv-badge').style.background = `linear-gradient(135deg,${theme.h1color},${theme.colors[0].d})`;
+  // Update hint text colour
+  const hint=document.querySelector('.hint');
+  if(hint) hint.style.color=theme.cellBorder;
 }
 
 // ── SHAPES ─────────────────────────────────────────────────
@@ -450,21 +589,24 @@ const SH = [
 ];
 
 function poolForLevel(l) {
-  if (l <= 2) return [...SE, ...SE, ...SM];
-  if (l <= 4) return [...SE, ...SM, ...SM];
-  if (l <= 6) return [...SM, ...SM, ...SH];
-  return [...SE, ...SM, ...SH];
+  if (l <= 2) return [...SE,...SE,...SE,...SE,...SM]; // 80% tiny, very playable
+  if (l <= 4) return [...SE,...SE,...SE,...SM,...SM]; // 60% tiny, 40% medium
+  if (l <= 6) return [...SE,...SE,...SM,...SM,...SM]; // 40% tiny, 60% medium
+  if (l <= 8) return [...SE,...SM,...SM,...SM,...SH]; // mix with some hard
+  return [...SE,...SM,...SM,...SH,...SH];             // full challenge
 }
 
 const GS = 8;
-function lvTarget(l) { return 3000 + (l-1)*2000; }
+// Level thresholds — low enough to feel rewarding, growing steadily
+// LV1→2: 800pts, LV2→3: 1200, LV3→4: 1600, grows by 400 each level
+function lvTarget(l) { return 800 + (l-1)*400; }
 function cumTarget(l) { let t=0; for(let i=1;i<l;i++) t+=lvTarget(i); return t; }
 
 let grid, score, best=0, level, pieces, used, drag=null;
 
 function init() {
   grid = Array.from({length:GS}, ()=>Array(GS).fill(null));
-  score=0; level=1;
+  score=0; level=1; currentThemeIdx=-1;
   drawGrid();
   spawn();
   ui();
@@ -484,22 +626,46 @@ function drawGrid() {
   const theme=getTheme(level);
   const el=document.getElementById('grid');
   el.innerHTML='';
+  const gridWrap=document.getElementById('grid-wrap');
+  gridWrap.style.background=theme.panel;
+  // Always set a solid background on the grid element itself
+  el.style.background=theme.cell;
+  el.style.backgroundColor=theme.cell;
+  if(theme.boardBg) {
+    el.style.backgroundImage=theme.boardBg;
+  } else {
+    el.style.backgroundImage='none';
+  }
   for(let r=0;r<GS;r++) for(let c=0;c<GS;c++) {
     const d=document.createElement('div');
     d.className='cell'; d.dataset.r=r; d.dataset.c=c;
+    d.style.position='relative';
+    d.style.display='flex';
+    d.style.alignItems='center';
+    d.style.justifyContent='center';
+    d.style.overflow='hidden';
     if(grid[r][c]) {
       d.classList.add('filled');
       d.style.background=grid[r][c].f;
       d.style.borderColor=grid[r][c].d;
+      // Store as data attrs so clearHL can restore without theme lookup
+      d.dataset.bg=grid[r][c].f;
+      d.dataset.border=grid[r][c].d;
+      d.innerHTML=getBlockSVG(theme.idx,r,c);
     } else {
       d.style.background=theme.cell;
       d.style.borderColor=theme.cellBorder;
+      // Store empty cell theme colour as data attrs
+      d.dataset.bg=theme.cell;
+      d.dataset.border=theme.cellBorder;
     }
     el.appendChild(d);
   }
 }
 
 function cel(r,c) { return document.querySelector(`.cell[data-r="${r}"][data-c="${c}"]`); }
+
+let currentThemeIdx = -1;
 
 function spawn() {
   const pool=poolForLevel(level);
@@ -509,11 +675,27 @@ function spawn() {
     color:theme.colors[Math.floor(Math.random()*theme.colors.length)]
   }));
   used=[false,false,false];
+  // Only remap grid colours when theme actually changes
+  if(theme.idx !== currentThemeIdx) {
+    remapGridToTheme(theme);
+    currentThemeIdx=theme.idx;
+  }
   drawTray();
+}
+
+function remapGridToTheme(theme) {
+  for(let r=0;r<GS;r++) for(let c=0;c<GS;c++) {
+    if(grid[r][c]) {
+      // Pick a colour from new theme based on a hash of position so it's consistent
+      const idx=(r*3+c*7)%theme.colors.length;
+      grid[r][c]=theme.colors[idx];
+    }
+  }
 }
 
 function drawTray() {
   const tray=document.getElementById('tray');
+  const theme=getTheme(level);
   tray.innerHTML='';
   for(let i=0;i<3;i++) {
     const slot=document.createElement('div');
@@ -524,11 +706,28 @@ function drawTray() {
       const pg=document.createElement('div');
       pg.className='pgrid';
       pg.style.gridTemplateColumns=`repeat(${shape[0].length},15px)`;
-      shape.forEach(row=>row.forEach(v=>{
+      shape.forEach((row,dr)=>row.forEach((v,dc)=>{
         const pc=document.createElement('div');
         pc.className='pc';
-        pc.style.background=v?color.f:'transparent';
-        if(v) pc.style.boxShadow=`inset 0 1px 0 rgba(255,255,255,0.2),0 2px 0 ${color.d}`;
+        if(v) {
+          pc.style.background=color.f;
+          pc.style.boxShadow=`inset 0 1px 0 rgba(255,255,255,0.2),0 2px 0 ${color.d}`;
+          pc.style.position='relative';
+          pc.style.display='flex';
+          pc.style.alignItems='center';
+          pc.style.justifyContent='center';
+          pc.style.overflow='hidden';
+          // Scale SVG down to fit 15px tray cell
+          const svg=getBlockSVG(theme.idx,dr,dc);
+          if(svg) {
+            const wrap=document.createElement('div');
+            wrap.style.cssText='position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;transform:scale(0.6);';
+            wrap.innerHTML=svg;
+            pc.appendChild(wrap);
+          }
+        } else {
+          pc.style.background='transparent';
+        }
         pg.appendChild(pc);
       }));
       slot.appendChild(pg);
@@ -557,8 +756,13 @@ function buildGhost(shape,color) {
     gc.className='gc';
     gc.style.width=cs+'px';
     gc.style.height=cs+'px';
-    gc.style.background=v?color.f:'transparent';
-    if(v) gc.style.boxShadow=`inset 0 3px 0 rgba(255,255,255,0.3),0 3px 0 ${color.d},0 6px 16px rgba(0,0,0,0.4)`;
+    if(v) {
+      gc.style.background=color.f;
+      gc.style.boxShadow=`inset 0 3px 0 rgba(255,255,255,0.3),0 3px 0 ${color.d},0 6px 16px rgba(0,0,0,0.4)`;
+    } else {
+      gc.style.background='transparent';
+      gc.style.boxShadow='none';
+    }
     ghostInner.appendChild(gc);
   }));
 }
@@ -566,18 +770,19 @@ function buildGhost(shape,color) {
 let rafId=null;
 let lastHlRow=null, lastHlCol=null;
 
-function ghostOffsets() {
+function getOffsets(shape) {
   const cs=cellSize();
-  const cols=drag.shape[0].length;
-  const rows=drag.shape.length;
+  const cols=shape[0].length;
+  const rows=shape.length;
   return {
+    cs,
     ox: (cols*cs + (cols-1)*3) / 2,
     oy: (rows*cs + (rows-1)*3) + 40
   };
 }
 
-function moveGhost(x,y) {
-  const {ox,oy}=ghostOffsets();
+function moveGhost(x,y,shape) {
+  const {ox,oy}=getOffsets(shape);
   if(rafId) cancelAnimationFrame(rafId);
   rafId=requestAnimationFrame(()=>{
     ghost.style.left=(x-ox)+'px';
@@ -586,26 +791,28 @@ function moveGhost(x,y) {
   });
 }
 
-function cellUnderGhost(x,y) {
-  const {ox,oy}=ghostOffsets();
-  const cs=cellSize();
-  const tx = x - ox + cs/2;
-  const ty = y - oy + cs/2;
+function cellUnderGhost(x,y,shape) {
+  const {ox,oy,cs}=getOffsets(shape);
+  const tx=x-ox+cs/2;
+  const ty=y-oy+cs/2;
 
+  // Try point directly
   let el=document.elementFromPoint(tx,ty);
-  if(el && el.dataset.r!==undefined) return el;
+  if(el && el.classList.contains('cell')) return el;
 
-  const offsets=[0,-12,12,-24,24];
-  for(let dy of offsets) for(let dx of offsets) {
+  // Try nearby points
+  const offs=[0,-14,14,-28,28];
+  for(let dy of offs) for(let dx of offs) {
     el=document.elementFromPoint(tx+dx,ty+dy);
-    if(el && el.dataset.r!==undefined) return el;
+    if(el && el.classList.contains('cell')) return el;
   }
 
+  // Nearest cell by distance
   const cells=document.querySelectorAll('.cell');
-  let best=null, bestDist=60;
+  let best=null, bestDist=70;
   cells.forEach(c=>{
-    const r=c.getBoundingClientRect();
-    const cx=r.left+r.width/2, cy=r.top+r.height/2;
+    const rect=c.getBoundingClientRect();
+    const cx=rect.left+rect.width/2, cy=rect.top+rect.height/2;
     const dist=Math.hypot(cx-tx,cy-ty);
     if(dist<bestDist){bestDist=dist;best=c;}
   });
@@ -614,14 +821,14 @@ function cellUnderGhost(x,y) {
 
 function onTS(e) {
   e.preventDefault();
-  const i=parseInt(e.currentTarget.dataset.i);
-  if(used[i]) return;
-  drag={i,shape:pieces[i].shape,color:pieces[i].color};
+  const idx=parseInt(e.currentTarget.dataset.i);
+  if(used[idx]) return;
+  drag={i:idx, shape:pieces[idx].shape, color:pieces[idx].color};
   lastHlRow=null; lastHlCol=null;
   e.currentTarget.classList.add('lifting');
-  buildGhost(drag.shape,drag.color);
+  buildGhost(drag.shape, drag.color);
   const t=e.touches[0];
-  const {ox,oy}=ghostOffsets();
+  const {ox,oy}=getOffsets(drag.shape);
   ghost.style.left=(t.clientX-ox)+'px';
   ghost.style.top=(t.clientY-oy)+'px';
   ghost.style.display='block';
@@ -632,14 +839,14 @@ function onTS(e) {
 
 function onTM(e) {
   e.preventDefault();
+  if(!drag) return;
   const t=e.touches[0];
-  moveGhost(t.clientX,t.clientY);
+  moveGhost(t.clientX,t.clientY,drag.shape);
   clearHL();
-  const el=cellUnderGhost(t.clientX,t.clientY);
-  if(el) {
+  const el=cellUnderGhost(t.clientX,t.clientY,drag.shape);
+  if(el && el.dataset.r!==undefined) {
     const r=+el.dataset.r, c=+el.dataset.c;
     doHL(r,c);
-    // Always remember the last cell we highlighted — used on drop
     if(canPlace(r,c,drag.shape)) {
       lastHlRow=r; lastHlCol=c;
     }
@@ -654,73 +861,104 @@ function onTE(e) {
   clearHL();
   document.querySelectorAll('.pslot.lifting').forEach(s=>s.classList.remove('lifting'));
 
-  const t=e.changedTouches[0];
+  if(!drag) { lastHlRow=null; lastHlCol=null; return; }
 
-  // First try: cell directly under finger at release
-  let el=cellUnderGhost(t.clientX,t.clientY);
+  const t=e.changedTouches[0];
+  const savedDrag=drag; // save before any async ops
   let placed=false;
-  if(el) {
+
+  const el=cellUnderGhost(t.clientX,t.clientY,savedDrag.shape);
+  if(el && el.dataset.r!==undefined) {
     const r=+el.dataset.r, c=+el.dataset.c;
-    if(canPlace(r,c,drag.shape)) { place(r,c,drag.i); placed=true; }
+    if(canPlace(r,c,savedDrag.shape)) {
+      place(r,c,savedDrag.i);
+      placed=true;
+    }
   }
 
-  // Second try: use the last highlighted valid cell from drag
   if(!placed && lastHlRow!==null) {
-    place(lastHlRow,lastHlCol,drag.i);
+    place(lastHlRow,lastHlCol,savedDrag.i);
     placed=true;
   }
 
-  drag=null; lastHlRow=null; lastHlCol=null;
+  drag=null;
+  lastHlRow=null;
+  lastHlCol=null;
 }
 
 function clearHL() {
-  document.querySelectorAll('.hl-valid,.hl-bad,.hl-line').forEach(c=>{
-    c.classList.remove('hl-valid','hl-bad','hl-line');
-    const r=+c.dataset.r, cc=+c.dataset.c;
-    if(grid[r][cc]) { c.style.background=grid[r][cc].f; c.style.borderColor=grid[r][cc].d; c.style.boxShadow=''; c.style.filter=''; }
-    else { c.style.background=''; c.style.borderColor=''; c.style.boxShadow=''; c.style.filter=''; }
+  document.querySelectorAll('.hl-valid,.hl-bad,.hl-line').forEach(el=>{
+    el.classList.remove('hl-valid','hl-bad','hl-line');
+    el.style.filter='';
+    el.style.boxShadow='';
+    // Always restore from stored data attributes — never falls back to CSS
+    el.style.background = el.dataset.bg || getTheme(level).cell;
+    el.style.borderColor = el.dataset.border || getTheme(level).cellBorder;
   });
 }
 
 function doHL(r,c) {
   const ok=canPlace(r,c,drag.shape);
+  const theme=getTheme(level);
 
-  // First mark the piece cells
+  // Build set of cells the piece would occupy
+  const pieceCells=new Set();
   drag.shape.forEach((row,dr)=>row.forEach((v,dc)=>{
     if(!v) return;
     const nr=r+dr, nc=c+dc;
-    if(nr<0||nr>=GS||nc<0||nc>=GS) return;
-    const el=cel(nr,nc); if(!el) return;
-    if(ok) { el.classList.add('hl-valid'); el.style.background=drag.color.f; el.style.borderColor=drag.color.d; }
-    else el.classList.add('hl-bad');
+    if(nr>=0&&nr<GS&&nc>=0&&nc<GS) pieceCells.add(nr+'-'+nc);
   }));
+
+  // Apply highlight to piece cells
+  pieceCells.forEach(key=>{
+    const [nr,nc]=key.split('-').map(Number);
+    const el=cel(nr,nc); if(!el) return;
+    if(ok) {
+      el.classList.add('hl-valid');
+      el.style.background=drag.color.f;
+      el.style.borderColor=drag.color.d;
+      // Don't overwrite data-bg — clearHL needs the original value
+    } else {
+      el.classList.add('hl-bad');
+      el.style.background='rgba(233,69,96,0.4)';
+      el.style.borderColor='#e94560';
+    }
+  });
 
   if(!ok) return;
 
-  // Build a temporary "what would the grid look like" to check completions
+  // Build test grid to find completing lines
   const testGrid=grid.map(row=>[...row]);
   drag.shape.forEach((row,dr)=>row.forEach((v,dc)=>{
-    if(v) testGrid[r+dr][c+dc]=drag.color;
+    const nr=r+dr, nc=c+dc;
+    if(v && nr>=0 && nr<GS && nc>=0 && nc<GS) testGrid[nr][nc]=drag.color;
   }));
 
-  // Find which rows and cols would be completed
   const completingRows=[], completingCols=[];
   for(let rr=0;rr<GS;rr++) if(testGrid[rr].every(v=>v)) completingRows.push(rr);
   for(let cc=0;cc<GS;cc++) if(testGrid.every(row=>row[cc])) completingCols.push(cc);
 
-  // Glow all cells in completing rows
+  // Glow completing rows — ensure ALL cells get explicit colour
   completingRows.forEach(rr=>{
     for(let cc=0;cc<GS;cc++) {
-      const el=cel(rr,cc); if(!el) return;
+      const el=cel(rr,cc); if(!el) continue;
       el.classList.add('hl-line');
+      // Make sure non-piece empty cells in completing line still show theme colour
+      if(!pieceCells.has(rr+'-'+cc) && !grid[rr][cc]) {
+        el.style.background=theme.cell;
+        el.style.borderColor=theme.cellBorder;
+      }
     }
   });
 
-  // Glow all cells in completing cols
   completingCols.forEach(cc=>{
     for(let rr=0;rr<GS;rr++) {
-      const el=cel(rr,cc); if(!el) return;
+      const el=cel(rr,cc); if(!el) continue;
       el.classList.add('hl-line');
+      if(!pieceCells.has(rr+'-'+cc) && !grid[rr][cc]) {
+        el.style.background=theme.cell;
+        el.style.borderColor=theme.cellBorder;
+      }
     }
   });
 }
@@ -738,16 +976,41 @@ function canPlace(r,c,shape) {
 function place(r,c,idx) {
   const {shape,color}=pieces[idx];
   if(!canPlace(r,c,shape)) return;
+
+  // 1. Update grid data
   shape.forEach((row,dr)=>row.forEach((v,dc)=>{ if(v) grid[r+dr][c+dc]=color; }));
   used[idx]=true;
   score+=shape.flat().filter(Boolean).length*5;
+
+  // 2. Paint new piece cells directly onto existing DOM — no full redraw yet
+  const theme=getTheme(level);
+  shape.forEach((row,dr)=>row.forEach((v,dc)=>{
+    if(!v) return;
+    const el=cel(r+dr,c+dc); if(!el) return;
+    el.classList.add('filled');
+    el.style.background=color.f;
+    el.style.borderColor=color.d;
+    el.style.position='relative';
+    el.style.display='flex';
+    el.style.alignItems='center';
+    el.style.justifyContent='center';
+    el.style.overflow='hidden';
+    // Update data attrs so clearHL restores correctly if dragged over
+    el.dataset.bg=color.f;
+    el.dataset.border=color.d;
+    el.innerHTML=getBlockSVG(theme.idx,r+dr,c+dc);
+  }));
+
+  // 3. Clear highlights
+  clearHL();
+
+  // 4. Now run line-clear animation — blocks are already visible on board
   doClears(()=>{
     if(score>best) best=score;
     drawGrid(); drawTray(); ui();
     if(used.every(Boolean)) {
       setTimeout(()=>{
-        spawn();
-        ui();
+        spawn(); ui();
         if(score>=cumTarget(level+1)) {
           level++;
           const theme=getTheme(level);
@@ -756,10 +1019,10 @@ function place(r,c,idx) {
           showOv('🎉 Level '+level+'!',msg,score,'Play On →',()=>{ drawGrid(); ui(); });
           return;
         }
-        if(!anyMove()) gameOver();
-      },200);
+        checkGameOver();
+      }, 250);
     } else {
-      if(!anyMove()) gameOver();
+      checkGameOver();
     }
   });
 }
@@ -779,11 +1042,9 @@ function doClears(cb) {
   const lines=fullRows.length+fullCols.length;
   score+=lines*lines*80*level;
 
-  // Phase 1: flash sweep across each row left→right, then each col top→bottom
-  const SWEEP=60; // ms between each cell in a line
-  const LINE_GAP=100; // ms between lines
+  const SWEEP=60;
+  const LINE_GAP=100;
 
-  let lineIdx=0;
   const allLines=[
     ...fullRows.map(r=>({type:'row',idx:r})),
     ...fullCols.map(c=>({type:'col',idx:c})),
@@ -826,8 +1087,11 @@ function doClears(cb) {
     }, delay);
   });
 
-  // Show feedback label
-  const totalDuration=allLines.length*LINE_GAP + GS*SWEEP + 180 + 500;
+  // Calculate exact total duration from actual max delay
+  let maxDelay=0;
+  cellDelays.forEach(d=>{ if(d>maxDelay) maxDelay=d; });
+  const totalDuration=maxDelay + 180 + 500 + 100; // flash + shatter + buffer
+
   showFeedback(lines, fullRows, fullCols);
 
   // Clear grid data and call back after all animations done
@@ -900,11 +1164,27 @@ function showFeedback(lines, fullRows, fullCols) {
 }
 
 function anyMove() {
-  return pieces.some((p,i)=>{
-    if(used[i]) return false;
-    for(let r=0;r<GS;r++) for(let c=0;c<GS;c++) if(canPlace(r,c,p.shape)) return true;
-    return false;
-  });
+  // Exhaustively check every unused piece against every cell
+  for(let i=0;i<3;i++){
+    if(used[i]) continue;
+    const shape=pieces[i].shape;
+    for(let r=0;r<GS;r++)
+      for(let c=0;c<GS;c++)
+        if(canPlace(r,c,shape)) return true;
+  }
+  return false;
+}
+
+// Wait for grid to fully settle before checking game over
+function checkGameOver() {
+  setTimeout(()=>{
+    // Double-check: run twice in case grid data was mid-update
+    if(!anyMove()){
+      setTimeout(()=>{
+        if(!anyMove()) gameOver();
+      }, 200);
+    }
+  }, 400);
 }
 
 function gameOver() {
