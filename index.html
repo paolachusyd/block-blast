@@ -269,8 +269,9 @@ h1 {
   flex-direction: column;
   align-items: center; justify-content: center;
   gap: 14px; text-align: center; padding: 24px;
+  touch-action: none;
 }
-#overlay.show { display: flex; }
+#overlay.show { display: flex; pointer-events: all; }
 #overlay h2 { font-family: 'Fredoka One', cursive; font-size: 2rem; color: #f5a623; }
 #overlay .osub { font-size: 0.95rem; color: #aabbcc; }
 #overlay .opts { font-family: 'Fredoka One', cursive; font-size: 2.6rem; color: #fff; }
@@ -297,7 +298,7 @@ h1 {
 
 <div id="grid-wrap"><div id="grid"></div></div>
 
-<p class="hint">👆 Drag a block onto the board</p>
+<p class="hint">👆 Tap piece to rotate · Hold & drag to place</p>
 
 <div id="tray"></div>
 
@@ -603,10 +604,12 @@ function lvTarget(l) { return 800 + (l-1)*400; }
 function cumTarget(l) { let t=0; for(let i=1;i<l;i++) t+=lvTarget(i); return t; }
 
 let grid, score, best=0, level, pieces, used, drag=null;
+let gameActive=false;
 
 function init() {
   grid = Array.from({length:GS}, ()=>Array(GS).fill(null));
   score=0; level=1; currentThemeIdx=-1;
+  gameActive=true;
   drawGrid();
   spawn();
   ui();
@@ -731,7 +734,57 @@ function drawTray() {
         pg.appendChild(pc);
       }));
       slot.appendChild(pg);
-      slot.addEventListener('touchstart',onTS,{passive:false});
+
+      // Tap to rotate, hold+drag to place
+      let tapTimer=null, tapStartX=0, tapStartY=0, isTap=false;
+
+      slot.addEventListener('touchstart', (e)=>{
+        if(!gameActive) return;
+        e.preventDefault();
+        const t=e.touches[0];
+        tapStartX=t.clientX; tapStartY=t.clientY;
+        isTap=true;
+        // Short tap = rotate; if finger moves or holds long = drag
+        tapTimer=setTimeout(()=>{
+          isTap=false;
+          // Start drag after 180ms hold
+          startDrag(e, parseInt(slot.dataset.i));
+        }, 180);
+      }, {passive:false});
+
+      slot.addEventListener('touchmove', (e)=>{
+        if(!gameActive) return;
+        e.preventDefault();
+        const t=e.touches[0];
+        const moved=Math.hypot(t.clientX-tapStartX, t.clientY-tapStartY);
+        if(moved>8) {
+          // Finger moved — treat as drag immediately
+          isTap=false;
+          clearTimeout(tapTimer);
+          if(!drag) startDrag(e, parseInt(slot.dataset.i));
+        }
+      }, {passive:false});
+
+      slot.addEventListener('touchend', (e)=>{
+        if(!gameActive) return;
+        e.preventDefault();
+        clearTimeout(tapTimer);
+        if(isTap) {
+          // Quick tap — rotate the piece
+          isTap=false;
+          const idx=parseInt(slot.dataset.i);
+          pieces[idx].shape=rotate90(pieces[idx].shape);
+          // Animate the slot
+          slot.style.transition='transform 0.15s';
+          slot.style.transform='scale(1.15) rotate(15deg)';
+          setTimeout(()=>{
+            slot.style.transform='';
+            setTimeout(()=>{ slot.style.transition=''; },150);
+          }, 120);
+          drawTray();
+        }
+        // If drag was active, onTE handles the drop
+      }, {passive:false});
     }
     tray.appendChild(slot);
   }
@@ -740,6 +793,11 @@ function drawTray() {
 // Ghost
 const ghost=document.getElementById('ghost');
 const ghostInner=document.getElementById('ghost-inner');
+
+// All drag state variables declared upfront
+let rafId=null;
+let lastHlRow=null, lastHlCol=null;
+let lastTouchX=null, lastTouchY=null;
 
 function cellSize() {
   const c = document.querySelector('.cell');
@@ -767,8 +825,15 @@ function buildGhost(shape,color) {
   }));
 }
 
-let rafId=null;
-let lastHlRow=null, lastHlCol=null;
+// Rotate a shape 90° clockwise
+function rotate90(shape) {
+  const rows=shape.length, cols=shape[0].length;
+  const rotated=Array.from({length:cols},()=>Array(rows).fill(0));
+  for(let r=0;r<rows;r++)
+    for(let c=0;c<cols;c++)
+      rotated[c][rows-1-r]=shape[r][c];
+  return rotated;
+}
 
 function getOffsets(shape) {
   const cs=cellSize();
@@ -819,15 +884,15 @@ function cellUnderGhost(x,y,shape) {
   return best;
 }
 
-function onTS(e) {
-  e.preventDefault();
-  const idx=parseInt(e.currentTarget.dataset.i);
-  if(used[idx]) return;
+function startDrag(e, idx) {
+  if(drag || used[idx] || !gameActive) return;
   drag={i:idx, shape:pieces[idx].shape, color:pieces[idx].color};
   lastHlRow=null; lastHlCol=null;
-  e.currentTarget.classList.add('lifting');
+  document.querySelectorAll('.pslot').forEach(s=>s.classList.remove('lifting'));
+  document.querySelectorAll('.pslot')[idx]?.classList.add('lifting');
   buildGhost(drag.shape, drag.color);
   const t=e.touches[0];
+  lastTouchX=t.clientX; lastTouchY=t.clientY;
   const {ox,oy}=getOffsets(drag.shape);
   ghost.style.left=(t.clientX-ox)+'px';
   ghost.style.top=(t.clientY-oy)+'px';
@@ -840,20 +905,21 @@ function onTS(e) {
 function onTM(e) {
   e.preventDefault();
   if(!drag) return;
+  // Use only first touch for movement
   const t=e.touches[0];
+  lastTouchX=t.clientX; lastTouchY=t.clientY;
   moveGhost(t.clientX,t.clientY,drag.shape);
   clearHL();
   const el=cellUnderGhost(t.clientX,t.clientY,drag.shape);
-  if(el && el.dataset.r!==undefined) {
+  if(el && el.classList.contains('cell')) {
     const r=+el.dataset.r, c=+el.dataset.c;
     doHL(r,c);
-    if(canPlace(r,c,drag.shape)) {
-      lastHlRow=r; lastHlCol=c;
-    }
+    if(canPlace(r,c,drag.shape)) { lastHlRow=r; lastHlCol=c; }
   }
 }
 
 function onTE(e) {
+  if(e.touches.length>0) return;
   document.removeEventListener('touchmove',onTM);
   document.removeEventListener('touchend',onTE);
   ghost.classList.remove('visible');
@@ -864,11 +930,11 @@ function onTE(e) {
   if(!drag) { lastHlRow=null; lastHlCol=null; return; }
 
   const t=e.changedTouches[0];
-  const savedDrag=drag; // save before any async ops
+  const savedDrag=drag;
   let placed=false;
 
   const el=cellUnderGhost(t.clientX,t.clientY,savedDrag.shape);
-  if(el && el.dataset.r!==undefined) {
+  if(el && el.classList.contains('cell')) {
     const r=+el.dataset.r, c=+el.dataset.c;
     if(canPlace(r,c,savedDrag.shape)) {
       place(r,c,savedDrag.i);
@@ -882,8 +948,8 @@ function onTE(e) {
   }
 
   drag=null;
-  lastHlRow=null;
-  lastHlCol=null;
+  lastHlRow=null; lastHlCol=null;
+  lastTouchX=null; lastTouchY=null;
 }
 
 function clearHL() {
@@ -1193,12 +1259,28 @@ function gameOver() {
 }
 
 function showOv(title,sub,pts,btn,cb) {
+  gameActive=false;
+  // Cancel any active drag
+  if(drag) {
+    drag=null; lastHlRow=null; lastHlCol=null;
+    ghost.classList.remove('visible');
+    ghost.style.display='none';
+    clearHL();
+    document.querySelectorAll('.pslot.lifting').forEach(s=>s.classList.remove('lifting'));
+    document.removeEventListener('touchmove',onTM);
+    document.removeEventListener('touchend',onTE);
+    document.removeEventListener('touchstart',onSecondFinger);
+  }
   document.getElementById('otitle').textContent=title;
   document.getElementById('osub').textContent=sub;
   document.getElementById('opts').textContent=pts+' pts';
   const b=document.getElementById('obtn');
   b.textContent=btn;
-  b.onclick=()=>{ document.getElementById('overlay').classList.remove('show'); cb(); };
+  b.onclick=()=>{
+    document.getElementById('overlay').classList.remove('show');
+    gameActive=true;
+    cb();
+  };
   document.getElementById('overlay').classList.add('show');
 }
 
